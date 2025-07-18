@@ -23,6 +23,8 @@ import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.ItemHandlerHelper;
+import com.jaquadro.minecraft.storagedrawers.api.capabilities.IItemRepository;
+import net.minecraft.util.NonNullList;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
@@ -36,8 +38,23 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 	public UUID owner = new UUID(0L, 0L);
 	public String name = "";
 	private boolean isDirty = false;
-	public final ItemStack[] inputSlots, outputSlots;
-	public long storedEMC = 0L;
+    public final ItemStack[] inputSlots, outputSlots;
+    public long storedEMC = 0L;
+    private final IItemRepository linkRepository = new LinkRepository();
+
+    private static final Capability<IItemRepository> CAP_REPOSITORY;
+
+    static {
+        Capability<IItemRepository> cap = null;
+        try {
+            Class<?> c = Class.forName("com.jaquadro.minecraft.storagedrawers.capabilities.CapabilityItemRepository");
+            @SuppressWarnings("unchecked")
+            Capability<IItemRepository> f = (Capability<IItemRepository>) c.getField("ITEM_REPOSITORY_CAPABILITY").get(null);
+            cap = f;
+        } catch (Throwable ignored) {
+        }
+        CAP_REPOSITORY = cap;
+    }
 
 	public TileLink(int in, int out)
 	{
@@ -151,17 +168,27 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 	}
 
 	@Override
-	public boolean hasCapability(Capability<?> capability, @Nullable EnumFacing side)
-	{
-		return capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY || super.hasCapability(capability, side);
-	}
+        public boolean hasCapability(Capability<?> capability, @Nullable EnumFacing side)
+        {
+                return capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY || (CAP_REPOSITORY != null && capability == CAP_REPOSITORY) || super.hasCapability(capability, side);
+        }
 
-	@Override
-	@SuppressWarnings("unchecked")
-	public <T> T getCapability(Capability<T> capability, @Nullable EnumFacing side)
-	{
-		return capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY ? (T) this : super.getCapability(capability, side);
-	}
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getCapability(Capability<T> capability, @Nullable EnumFacing side)
+        {
+                if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY)
+                {
+                        return (T) this;
+                }
+
+                if (CAP_REPOSITORY != null && capability == CAP_REPOSITORY)
+                {
+                        return CAP_REPOSITORY.cast(linkRepository);
+                }
+
+                return super.getCapability(capability, side);
+        }
 
 	@Override
 	public int getSlots()
@@ -455,8 +482,8 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		return Long.MAX_VALUE;
 	}
 
-	public boolean setOutputStack(EntityPlayer player, int slot, ItemStack stack, boolean addKnowledge)
-	{
+        public boolean setOutputStack(EntityPlayer player, int slot, ItemStack stack, boolean addKnowledge)
+        {
 		stack = ProjectEXUtils.fixOutput(stack);
 		IKnowledgeProvider knowledgeProvider = PersonalEMC.get(player);
 
@@ -476,6 +503,74 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			return true;
 		}
 
-		return false;
-	}
+                return false;
+        }
+
+        private class LinkRepository implements IItemRepository
+        {
+                @Nonnull
+                @Override
+                public NonNullList<ItemRecord> getAllItems()
+                {
+                        NonNullList<ItemRecord> list = NonNullList.create();
+
+                        for (ItemStack stack : inputSlots)
+                        {
+                                if (!stack.isEmpty())
+                                {
+                                        ItemStack proto = stack.copy();
+                                        proto.setCount(1);
+                                        list.add(new ItemRecord(proto, stack.getCount()));
+                                }
+                        }
+
+                        for (int i = 0; i < outputSlots.length; i++)
+                        {
+                                ItemStack stack = getStackInSlot(inputSlots.length + i);
+
+                                if (!stack.isEmpty())
+                                {
+                                        ItemStack proto = stack.copy();
+                                        proto.setCount(1);
+                                        list.add(new ItemRecord(proto, stack.getCount()));
+                                }
+                        }
+
+                        return list;
+                }
+
+                @Nonnull
+                @Override
+                public ItemStack insertItem(@Nonnull ItemStack stack, boolean simulate, Predicate<ItemStack> predicate)
+                {
+                        if (predicate != null && !predicate.test(stack))
+                        {
+                                return stack;
+                        }
+
+                        return ItemHandlerHelper.insertItem(TileLink.this, stack, simulate);
+                }
+
+                @Nonnull
+                @Override
+                public ItemStack extractItem(@Nonnull ItemStack stack, int amount, boolean simulate, Predicate<ItemStack> predicate)
+                {
+                        if (stack.isEmpty() || amount <= 0)
+                        {
+                                return ItemStack.EMPTY;
+                        }
+
+                        for (int i = 0; i < outputSlots.length; i++)
+                        {
+                                ItemStack current = getStackInSlot(inputSlots.length + i);
+
+                                if (!current.isEmpty() && ItemHandlerHelper.canItemStacksStack(current, stack) && (predicate == null || predicate.test(current)))
+                                {
+                                        return TileLink.this.extractItem(inputSlots.length + i, amount, simulate);
+                                }
+                        }
+
+                        return ItemStack.EMPTY;
+                }
+        }
 }
