@@ -1,13 +1,13 @@
 [
 	{
 		"modid": "projectex",
-		"name": "Project EX",
+		"name": "Project EZ",
 		"description": "",
 		"version": "${version}",
 		"mcversion": "${mcversion}",
 		"url": "http://minecraft.curseforge.com/projects/project-ex",
 		"updateUrl": "",
-		"authorList": ["LatvianModder"],
+		"authorList": ["Fork by Dallagen, Original mod by LatvianModder"],
 		"credits": "",
 		"logoFile": "assets/projectex/textures/logo.png",
 		"screenshots": [],

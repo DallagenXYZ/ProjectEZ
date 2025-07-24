@@ -1,88 +1,141 @@
-buildscript {
-	repositories {
-		jcenter()
-		maven { url = "http://files.minecraftforge.net/maven" }
-		maven { url "https://plugins.gradle.org/m2/" }
-	}
-	dependencies {
-		classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
-		classpath 'gradle.plugin.com.matthewprenger:CurseGradle:1.1.0'
-		classpath 'com.wynprice.cursemaven:CurseMaven:1.2.+'
-	}
+plugins {
+    id 'eclipse'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '5.1.69'
+    id 'wtf.gofancy.fancygradle' version '1.1.3-0'
+
 }
 
-apply plugin: 'net.minecraftforge.gradle.forge'
-apply plugin: 'com.matthewprenger.cursegradle'
-apply plugin: 'maven'
-apply plugin: 'com.wynprice.cursemaven'
-
-apply from: 'https://raw.githubusercontent.com/MinecraftModDevelopment/Gradle-Collection/master/generic/markdown-git-changelog.gradle'
-
-def ENV = System.getenv()
-version = ENV.BUILD_NUMBER ? "${mod_version}.${ENV.BUILD_NUMBER}" : "${mod_version}.custom"
-group = package_group
-archivesBaseName = mod_name
-
-sourceCompatibility = targetCompatibility = "1.8"
-compileJava {
-	sourceCompatibility = targetCompatibility = "1.8"
+repositories {
+    maven { url = 'https://maven.minecraftforge.net/' }
+    maven { url = 'https://maven.gofancy.wtf/releases' }
+    mavenCentral()
+    maven {
+        url "https://maven.blamejared.com"
+    }
+    maven {
+        url "https://cursemaven.com"
+    }
 }
+
+
+version = '1.0'
+group = 'com.yourname.modid' // http://maven.apache.org/guides/mini/guide-naming-conventions.html
+archivesBaseName = 'modid'
+
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8' // Need this here so eclipse task generates correctly.
 
 minecraft {
-	version = "${mc_version}-${forge_version}"
-	runDir = "run"
-	mappings = project.mappings_version
+    // The mappings can be changed at any time, and must be in the following format.
+    // snapshot_YYYYMMDD   Snapshot are built nightly.
+    // stable_#            Stables are built at the discretion of the MCP team.
+    // Use non-default mappings at your own risk. they may not always work.
+    // Simply re-run your setup task after changing the mappings to update your workspace.
+    //mappings channel: 'snapshot', version: '20171003-1.12'
+    mappings channel: 'stable', version: '39-1.12'
+    // makeObfSourceJar = false // an Srg named sources jar is made by default. uncomment this to disable.
+    
+    // accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
-	replace "0.0.0.projectex", project.version
-	replaceIn project.mod_reference
+    // Default run configurations.
+    // These can be tweaked, removed, or duplicated as needed.
+    runs {
+        client {
+            workingDirectory project.file('run')
+
+            // Recommended logging data for a userdev environment
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+
+            // Recommended logging level for the console
+            property 'forge.logging.console.level', 'debug'
+        }
+
+        server {
+
+            // Recommended logging data for a userdev environment
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+
+            // Recommended logging level for the console
+            property 'forge.logging.console.level', 'debug'
+        }
+    }
 }
 
 dependencies {
-	deobfCompile curse.resolve('projecte', project.projecte_file)
-	deobfProvided curse.resolve('jei', project.jei_file)
+    // Specify the version of Minecraft to use, If this is any group other then 'net.minecraft' it is assumed
+    // that the dep is a ForgeGradle 'patcher' dependency. And it's patches will be applied.
+    // The userdev artifact is a special name and will get all sorts of transformations applied to it.
+    minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2860'
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+    // https://mvnrepository.com/artifact/CraftTweaker2/CraftTweaker2-MC1120-Main
+    implementation("CraftTweaker2:CraftTweaker2-MC1120-Main:1.12-4.1.20.704")
+    implementation("curse.maven:invtweaks-223094:2482482")
+    implementation fg.deobf("curse.maven:projecte-226410:2702991")
+    implementation fg.deobf("curse.maven:jei-238222:5846804")
+
+    // You may put jars on which you depend on in ./libs or you may define them like so..
+    // compile "some.group:artifact:version:classifier"
+    // compile "some.group:artifact:version"
+
+    // Real examples
+    // compile 'com.mod-buildcraft:buildcraft:6.0.8:dev'  // adds buildcraft to the dev env
+    // compile 'com.googlecode.efficient-java-matrix-library:ejml:0.24' // adds ejml to the dev env
+
+    // The 'provided' configuration is for optional dependencies that exist at compile-time but might not at runtime.
+    // provided 'com.mod-buildcraft:buildcraft:6.0.8:dev'
+
+    // These dependencies get remapped to your current MCP mappings
+    // deobf 'com.mod-buildcraft:buildcraft:6.0.8:dev'
+
+    // For more info...
+    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
+    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    implementation ("net.minecraftforge:mergetool:0.2.3.3") { force = true }
 }
 
-processResources {
-	inputs.property "version", project.version
-	inputs.property "mcversion", project.minecraft.version
-
-	from(sourceSets.main.resources.srcDirs) {
-		include 'mcmod.info'
-		expand 'version': project.version, 'mcversion': project.minecraft.version
-	}
-
-	from(sourceSets.main.resources.srcDirs) {
-		exclude 'mcmod.info'
-	}
+// Example for how to get properties into the manifest for reading by the runtime..
+jar {
+    manifest {
+        attributes([
+            "Specification-Title": "examplemod",
+            "Specification-Vendor": "examplemodsareus",
+            "Specification-Version": "1", // We are version 1 of ourselves
+            "Implementation-Title": project.name,
+            "Implementation-Version": "0.1",
+            "Implementation-Vendor" :"examplemodsareus",
+            "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
 }
 
-artifacts {
-	archives sourceJar
+// Example configuration to allow publishing using the maven-publish task
+// This is the preferred method to reobfuscate your jar file
+jar.finalizedBy('reobfJar') 
+// However if you are in a multi-project build, dev time needs unobfed jar files, so you can delay the obfuscation until publishing by doing
+//publish.dependsOn('reobfJar')
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file:///${project.projectDir}/mcmodsrepo"
+        }
+        maven { url = "https://maven.minecraftforge.net" }
+    }
 }
 
-if (ENV.LOCAL_MAVEN) {
-	uploadArchives {
-		repositories {
-			mavenDeployer {
-				repository(url: "file://${ENV.LOCAL_MAVEN}")
-			}
-		}
-	}
+fancyGradle {
+    patches {
+        resources
+        coremods
+        codeChickenLib
+        asm
+        mergetool
+    }
 }
 
-if (ENV.CURSEFORGE_KEY) {
-	curseforge {
-		apiKey = ENV.CURSEFORGE_KEY
-		project {
-			id = project.curseforge_id
-			releaseType = "release"
-			addGameVersion project.mc_version
-			relations {
-				requiredDependency 'projecte'
-			}
-			changelog = getGitChangelog
-			changelogType = 'markdown'
-			addArtifact(sourceJar)
-		}
-	}
-}
+sourceSets.all { it.output.resourcesDir = it.output.classesDirs.getFiles().iterator().next() }

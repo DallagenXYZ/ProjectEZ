@@ -1,5 +1,6 @@
 package com.latmod.mods.projectex;
 
+import com.jaquadro.minecraft.storagedrawers.api.capabilities.CapabilityItemRepository;
 import com.latmod.mods.projectex.gui.EMCFormat;
 import com.latmod.mods.projectex.gui.ProjectEXGuiHandler;
 import com.latmod.mods.projectex.item.ProjectEXItems;
@@ -30,9 +31,9 @@ import java.lang.reflect.Modifier;
 )
 public class ProjectEX
 {
-	public static final String MOD_ID = "projectex";
-	public static final String MOD_NAME = "Project EX";
-	public static final String VERSION = "0.0.0.projectex";
+	public static final String MOD_ID = "projectez";
+	public static final String MOD_NAME = "Project EZ☃";
+	public static final String VERSION = "0.1fork☃";
 
 	public static final CreativeTabs TAB = new CreativeTabs(MOD_ID)
 	{
