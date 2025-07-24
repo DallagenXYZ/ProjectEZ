@@ -1,1 +1,8 @@
-# Project EX [![](http://cf.way2muchnoise.eu/project-ex.svg) ![](http://cf.way2muchnoise.eu/versions/project-ex.svg)](https://www.curseforge.com/minecraft/mc-mods/project-ex)
+# Project EZ 
+
+TODO:
+* i didnt actually reimplement emc_link_max_out in config but i dont think it will do anything to help anymore 
+
+* ????
+
+* profit
