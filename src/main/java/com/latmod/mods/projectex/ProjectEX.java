@@ -31,9 +31,9 @@ import java.lang.reflect.Modifier;
 )
 public class ProjectEX
 {
-	public static final String MOD_ID = "projectez";
-	public static final String MOD_NAME = "Project EZ☃";
-	public static final String VERSION = "0.1fork☃";
+	public static final String MOD_ID = "projectex";
+	public static final String MOD_NAME = "Project EZ";
+	public static final String VERSION = "0.1fork";
 
 	public static final CreativeTabs TAB = new CreativeTabs(MOD_ID)
 	{
