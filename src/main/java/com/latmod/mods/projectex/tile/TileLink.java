@@ -24,6 +24,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
@@ -34,6 +35,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Predicate;
 import net.minecraft.util.NonNullList;
+import com.jaquadro.minecraft.storagedrawers.api.capabilities.IItemRepository.ItemRecord;
 
 /**
  * TileLink with Storage Drawers capability support
@@ -149,7 +151,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		if (cap == CapabilityItemRepository.ITEM_REPOSITORY_CAPABILITY) {
 			return (T) this;
 		}
-		return Objects.requireNonNull(super.getCapability(cap, side));
+		return super.getCapability(cap, side);
 	}
 
 	//—— IItemHandlerModifiable ——
@@ -167,7 +169,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		int idx = slot - inputSlots.length;
 		ItemStack proto = outputSlots[idx];
 		if (proto.isEmpty()) return ItemStack.EMPTY;
-		long val = getEMC(proto);
+		long val = getCachedEMC(proto);
 		if (val <= 0) return ItemStack.EMPTY;
 		int count = getCountFor(val, ProjectEXConfig.general.emc_link_max_out);
 		if (count <= 0) return ItemStack.EMPTY;
@@ -207,7 +209,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		ItemStack proto = outputSlots[slot - inputSlots.length];
 		if (proto.isEmpty()) return ItemStack.EMPTY;
 
-		long val = getEMC(proto);
+		long val = getCachedEMC(proto);
 		if (val <= 0L) return ItemStack.EMPTY;
 
 		IKnowledgeProvider prov = PersonalEMC.get(world, owner);
@@ -261,10 +263,10 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		for (int i = 0, len = inputSlots.length; i < len; i++) {
 			ItemStack in = inputSlots[i];
 			if (!in.isEmpty()) {
-				long val = getEMC(in);
+				long val = getCachedEMC(in);
 				if (val > 0) {
 					if (prov != null && learnItems()) sync |= prov.addKnowledge(ProjectEXUtils.fixOutput(in));
-					storedEMC += (long) (in.getCount() * val * ProjectEConfig.difficulty.covalenceLoss);
+					storedEMC += in.getCount() * val * ProjectEConfig.difficulty.covalenceLoss;
 					inputSlots[i] = ItemStack.EMPTY;
 					markDirty();
 				}
@@ -276,8 +278,8 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			markDirty();
 		}
 		if (sync) {
-			EntityPlayerMP player = Objects.requireNonNull(world.getMinecraftServer()).getPlayerList().getPlayerByUUID(owner);
-            prov.sync(player);
+			EntityPlayerMP player = world.getMinecraftServer().getPlayerList().getPlayerByUUID(owner);
+			if (player != null) prov.sync(player);
 		}
 		if (dirty) {
 			dirty = false;
@@ -358,7 +360,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		return (int) Math.min(maxOut, emc / value);
 	}
 
-	private long getEMC(ItemStack stack) {
+	private long getCachedEMC(ItemStack stack) {
 		Item item = stack.getItem();
         return ProjectEAPI.getEMCProxy().getValue(stack);
 	}
@@ -377,7 +379,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		for (ItemStack proto : outputSlots) {
 			if (proto.isEmpty()) continue;
 
-			long val = getEMC(proto);
+			long val = getCachedEMC(proto);
 			if (val <= 0) continue;
 
 			long possible = emc / val;
@@ -386,6 +388,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			// clamp to int range
 			int count = (int) Math.min((long) Integer.MAX_VALUE, possible);
 			ItemStack copy = proto.copy();
+			copy.setCount(count);
 			list.add(new ItemRecord(copy, count));
 		}
 		return list;
@@ -395,11 +398,11 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 	@Optional.Method(modid = "storagedrawers")
 	@Nonnull
 	public ItemStack insertItem(@Nonnull ItemStack stack, boolean simulate, Predicate<ItemStack> predicate) {
-		if (stack.isEmpty() || !predicate.test(stack)) {
+		if (stack.isEmpty() || (predicate != null && !predicate.test(stack))) {
 			return stack;
 		}
 		// reject anything without an EMC value
-		long val = getEMC(stack);
+		long val = getCachedEMC(stack);
 		if (val <= 0) {
 			return stack;
 		}
@@ -429,7 +432,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			return ItemStack.EMPTY;
 		}
 
-		long val = getEMC(prototype);
+		long val = getCachedEMC(prototype);
 		if (val <= 0L) {
 			return ItemStack.EMPTY;
 		}
