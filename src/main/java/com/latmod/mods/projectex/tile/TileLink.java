@@ -24,7 +24,6 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ITickable;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
@@ -35,30 +34,21 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Predicate;
 import net.minecraft.util.NonNullList;
-import com.jaquadro.minecraft.storagedrawers.api.capabilities.IItemRepository.ItemRecord;
 
-
+/**
+ * TileLink with Storage Drawers capability support
+ */
 @Optional.Interface(iface = "com.jaquadro.minecraft.storagedrawers.api.capabilities.IItemRepository", modid = "storagedrawers")
 public class TileLink extends TileEntity implements IItemHandlerModifiable, ITickable, IEmcAcceptor, IItemRepository {
-
+	// Owner, display name, and dirty flag
 	public UUID owner = new UUID(0L, 0L);
 	public String name = "";
 	public boolean dirty = false;
 
-
+	// Input and output storage
 	public final ItemStack[] inputSlots;
 	public final ItemStack[] outputSlots;
 	public long storedEMC = 0L;
-
-	// Simple LRU cache for EMC values
-	private static final Map<Item, Long> EMC_CACHE = Collections.synchronizedMap(
-			new LinkedHashMap<Item, Long>(128, 0.75f, true) {
-				@Override
-				protected boolean removeEldestEntry(Map.Entry<Item, Long> eldest) {
-					return size() > 128;
-				}
-			}
-	);
 
 	public TileLink(int numInput, int numOutput) {
 		inputSlots = new ItemStack[numInput];
@@ -159,7 +149,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		if (cap == CapabilityItemRepository.ITEM_REPOSITORY_CAPABILITY) {
 			return (T) this;
 		}
-		return super.getCapability(cap, side);
+		return Objects.requireNonNull(super.getCapability(cap, side));
 	}
 
 	//—— IItemHandlerModifiable ——
@@ -177,7 +167,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		int idx = slot - inputSlots.length;
 		ItemStack proto = outputSlots[idx];
 		if (proto.isEmpty()) return ItemStack.EMPTY;
-		long val = getCachedEMC(proto);
+		long val = getEMC(proto);
 		if (val <= 0) return ItemStack.EMPTY;
 		int count = getCountFor(val, ProjectEXConfig.general.emc_link_max_out);
 		if (count <= 0) return ItemStack.EMPTY;
@@ -217,7 +207,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		ItemStack proto = outputSlots[slot - inputSlots.length];
 		if (proto.isEmpty()) return ItemStack.EMPTY;
 
-		long val = getCachedEMC(proto);
+		long val = getEMC(proto);
 		if (val <= 0L) return ItemStack.EMPTY;
 
 		IKnowledgeProvider prov = PersonalEMC.get(world, owner);
@@ -225,7 +215,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		long totalEmc    = storedEMC + personalEmc;
 		if (totalEmc < val) return ItemStack.EMPTY;
 
-
+		// honour small requests, but never exceed your EMC budget:
 		int toExtract = (int) Math.min((long)amount, totalEmc / val);
 
 		ItemStack result = proto.copy();
@@ -234,11 +224,11 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		if (!simulate) {
 			long cost = val * toExtract;
 
-
+			// 1) drain from your storedEMC
 			long fromStored = Math.min(storedEMC, cost);
 			storedEMC -= fromStored;
 
-
+			// 2) drain any remainder from personal EMC
 			long remaining = cost - fromStored;
 			if (remaining > 0 && prov != null) {
 				PersonalEMC.remove(prov, remaining);
@@ -271,10 +261,10 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		for (int i = 0, len = inputSlots.length; i < len; i++) {
 			ItemStack in = inputSlots[i];
 			if (!in.isEmpty()) {
-				long val = getCachedEMC(in);
+				long val = getEMC(in);
 				if (val > 0) {
 					if (prov != null && learnItems()) sync |= prov.addKnowledge(ProjectEXUtils.fixOutput(in));
-					storedEMC += in.getCount() * val * ProjectEConfig.difficulty.covalenceLoss;
+					storedEMC += (long) (in.getCount() * val * ProjectEConfig.difficulty.covalenceLoss);
 					inputSlots[i] = ItemStack.EMPTY;
 					markDirty();
 				}
@@ -286,8 +276,8 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			markDirty();
 		}
 		if (sync) {
-			EntityPlayerMP player = world.getMinecraftServer().getPlayerList().getPlayerByUUID(owner);
-			if (player != null) prov.sync(player);
+			EntityPlayerMP player = Objects.requireNonNull(world.getMinecraftServer()).getPlayerList().getPlayerByUUID(owner);
+            prov.sync(player);
 		}
 		if (dirty) {
 			dirty = false;
@@ -343,6 +333,10 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 
 	//—— Helpers ——
 
+	/**
+	 * Mark this tile dirty for saving/sync.
+	 * Overridden to be public so it can be accessed where needed.
+	 */
 	@Override
 	public void markDirty() {
 		dirty = true;
@@ -364,14 +358,9 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		return (int) Math.min(maxOut, emc / value);
 	}
 
-	private long getCachedEMC(ItemStack stack) {
+	private long getEMC(ItemStack stack) {
 		Item item = stack.getItem();
-		Long v = EMC_CACHE.get(item);
-		if (v == null) {
-			v = ProjectEAPI.getEMCProxy().getValue(stack);
-			EMC_CACHE.put(item, v);
-		}
-		return v;
+        return ProjectEAPI.getEMCProxy().getValue(stack);
 	}
 
 //—— IItemRepository (Storage Drawers) ——//
@@ -388,15 +377,15 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		for (ItemStack proto : outputSlots) {
 			if (proto.isEmpty()) continue;
 
-			long val = getCachedEMC(proto);
+			long val = getEMC(proto);
 			if (val <= 0) continue;
 
 			long possible = emc / val;
 			if (possible <= 0) continue;
 
+			// clamp to int range
 			int count = (int) Math.min((long) Integer.MAX_VALUE, possible);
 			ItemStack copy = proto.copy();
-			copy.setCount(count);
 			list.add(new ItemRecord(copy, count));
 		}
 		return list;
@@ -406,22 +395,23 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 	@Optional.Method(modid = "storagedrawers")
 	@Nonnull
 	public ItemStack insertItem(@Nonnull ItemStack stack, boolean simulate, Predicate<ItemStack> predicate) {
-		if (stack.isEmpty() || (predicate != null && !predicate.test(stack))) {
+		if (stack.isEmpty() || !predicate.test(stack)) {
 			return stack;
 		}
-		long val = getCachedEMC(stack);
+		// reject anything without an EMC value
+		long val = getEMC(stack);
 		if (val <= 0) {
 			return stack;
 		}
 
 		if (!simulate) {
-			// convert entire stack straight into EMC
+			// convert entire stack straight into EMC, applying covalenceLoss:
 			double rawGain = stack.getCount() * (double) val * ProjectEConfig.difficulty.covalenceLoss;
-			long gain = (long) rawGain;
+			long gain = (long) rawGain;    // cast from double → long
 			storedEMC += gain;
 			markDirty();
 		}
-
+		// we accepted the whole stack
 		return ItemStack.EMPTY;
 	}
 
@@ -439,7 +429,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			return ItemStack.EMPTY;
 		}
 
-		long val = getCachedEMC(prototype);
+		long val = getEMC(prototype);
 		if (val <= 0L) {
 			return ItemStack.EMPTY;
 		}
@@ -451,7 +441,7 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			return ItemStack.EMPTY;
 		}
 
-
+		// honour small requests, cap by EMC budget
 		int toExtract = (int) Math.min((long)amount, totalEmc / val);
 
 		ItemStack result = prototype.copy();
