@@ -206,8 +206,14 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 		if (slot < inputSlots.length || amount <= 0 || world.isRemote)
 			return ItemStack.EMPTY;
 
+
 		ItemStack proto = outputSlots[slot - inputSlots.length];
 		if (proto.isEmpty()) return ItemStack.EMPTY;
+		boolean matching = Arrays.stream(outputSlots).anyMatch(output -> ItemStack.areItemsEqual(output, proto));
+
+		if (!matching) {
+			return ItemStack.EMPTY;
+		}
 
 		long val = getCachedEMC(proto);
 		if (val <= 0L) return ItemStack.EMPTY;
@@ -428,7 +434,14 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			boolean simulate,
 			Predicate<ItemStack> predicate
 	) {
+
 		if (prototype.isEmpty() || (predicate != null && !predicate.test(prototype))) {
+			return ItemStack.EMPTY;
+		}
+
+		boolean matching = Arrays.stream(outputSlots).anyMatch(output -> ItemStack.areItemsEqual(output, prototype));
+
+		if (!matching) {
 			return ItemStack.EMPTY;
 		}
 
