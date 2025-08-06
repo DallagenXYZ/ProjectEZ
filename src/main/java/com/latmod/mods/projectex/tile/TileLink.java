@@ -404,6 +404,9 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 	@Optional.Method(modid = "storagedrawers")
 	@Nonnull
 	public ItemStack insertItem(@Nonnull ItemStack stack, boolean simulate, Predicate<ItemStack> predicate) {
+		IKnowledgeProvider knowledgeProvider = PersonalEMC.get(world, owner);
+		boolean syncKnowledge = false;
+
 		if (stack.isEmpty() || (predicate != null && !predicate.test(stack))) {
 			return stack;
 		}
@@ -419,6 +422,20 @@ public class TileLink extends TileEntity implements IItemHandlerModifiable, ITic
 			long gain = (long) rawGain;    // cast from double → long
 			storedEMC += gain;
 			markDirty();
+			if (owner.getLeastSignificantBits() != 0L || owner.getMostSignificantBits() != 0L) {
+				if (knowledgeProvider != null && learnItems())
+				{
+					syncKnowledge = knowledgeProvider.addKnowledge(ProjectEXUtils.fixOutput(stack));
+					if (syncKnowledge) {
+						EntityPlayerMP player = world.getMinecraftServer().getPlayerList().getPlayerByUUID(owner);
+
+						if (player != null) {
+							knowledgeProvider.sync(player);
+						}
+					}
+				}
+
+			}
 		}
 		// we accepted the whole stack
 		return ItemStack.EMPTY;
