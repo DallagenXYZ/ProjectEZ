@@ -72,6 +72,10 @@ dependencies {
     implementation("curse.maven:invtweaks-223094:2482482")
     implementation fg.deobf("curse.maven:projecte-226410:2702991")
     implementation fg.deobf("curse.maven:jei-238222:5846804")
+    implementation fg.deobf("curse.maven:ae2-570458:5378163")
+    implementation fg.deobf("curse.maven:mixinbooter-419286:6344449")
+    implementation fg.deobf("curse.maven:spark-361579:3542217")
+
 
     // You may put jars on which you depend on in ./libs or you may define them like so..
     // compile "some.group:artifact:version:classifier"
