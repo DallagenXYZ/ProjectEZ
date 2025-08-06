@@ -1,4 +1,4 @@
-# ProjectEZ - ProjectEX Fork
+## ProjectEZ - ProjectEX Fork
 
 
 ## About
