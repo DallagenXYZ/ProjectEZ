@@ -126,35 +126,42 @@ public class ProjectEXClientEventHandler
 	@SubscribeEvent
 	public static void clientTick(TickEvent.ClientTickEvent event)
 	{
-		if (event.phase == TickEvent.Phase.END && Minecraft.getMinecraft().player != null)
+		if (event.phase != TickEvent.Phase.END || Minecraft.getMinecraft().player == null)
 		{
-			emc = PersonalEMC.get(Minecraft.getMinecraft().player).getEmc();
+			return;
+		}
 
-			if (timer == 1)
+		emc = PersonalEMC.get(Minecraft.getMinecraft().player).getEmc();
+
+		if (timer == 0)
+		{
+			lastEMC = emc;
+		}
+		else if (timer >= 20)  // 20 ticks = 1 second
+		{
+			System.arraycopy(emcsa, 1, emcsa, 0, emcsa.length - 1);
+			emcsa[emcsa.length - 1] = emc - lastEMC;
+			lastEMC = emc;
+
+			emcs = 0L;
+
+			for (long d : emcsa)
 			{
-				System.arraycopy(emcsa, 1, emcsa, 0, emcsa.length - 1);
-				emcsa[emcsa.length - 1] = emc - lastEMC;
-				lastEMC = emc;
-
-				emcs = 0L;
-
-				for (long d : emcsa)
-				{
-					emcs += d;
-				}
-
-				emcs /= emcsa.length;
-				timer = -1; //Should be -1 as this leaves the if it would increment. Toys0125
+				emcs += d;
 			}
 
-			timer = (timer + 1) % 20;
+			emcs /= emcsa.length;
+			timer = 0;
 		}
+
+		timer++;
 	}
 
 	@SubscribeEvent
 	public static void clientDisconnectionFromServer(FMLNetworkEvent.ClientDisconnectionFromServerEvent event)
 	{
 		emc = 0L;
+		lastEMC = 0L;
 		timer = 0;
 		emcs = 0L;
 		Arrays.fill(emcsa, 0L);
