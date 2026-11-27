@@ -290,6 +290,17 @@ public class ContainerArcaneTablet extends ContainerTableBase
 			{
 				ItemStack stack = player.inventory.getStackInSlot(j);
 
+				if (stack.isEmpty() || stack.getItem() != fixedp.getItem())
+				{
+					continue;
+				}
+
+				int metadata = !stack.getHasSubtypes() && stack.isItemStackDamageable() ? 0 : stack.getMetadata();
+				if (metadata != fixedp.getMetadata())
+				{
+					continue;
+				}
+
 				if (ItemStack.areItemStacksEqualUsingNBTShareTag(fixedp, ProjectEXUtils.fixOutput(stack)))
 				{
 					ItemStack slotItem = craftMatrix.getStackInSlot(i);
